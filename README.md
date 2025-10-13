@@ -34,3 +34,7 @@ dida-roof-seg/
    │  └─ engine.py             # Trainer and Predictor
    ├─ train.py                 # CLI: trains, saves best.pth, prints metrics
    └─ predict.py               # CLI: loads best.pth, writes 5 test masks
+
+## Object-Oriented style
+
+The pipeline follows a lightweight OOP design (Dataset, Model, Trainer, Predictor) to encapsulate data loading, training, and inference logic. This makes it easy to extend later (e.g., with augmentation, k-fold CV, or experiment tracking) while keeping the current code minimal and readable.

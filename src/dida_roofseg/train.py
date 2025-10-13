@@ -1,3 +1,10 @@
+# src/dida_roofseg/train.py
+
+"""
+Train roof segmentation
+Argparse CLI with sane defaults (no config files)
+"""
+
 import argparse
 from pathlib import Path
 
@@ -8,11 +15,11 @@ from dida_roofseg.dataset import RoofDataset
 from dida_roofseg.engine import Trainer, TrainConfig
 from dida_roofseg.io import discover_pairs, train_val_split
 from dida_roofseg.seed import set_seed
-from dida_roofseg import model as model_mod  # your model.py
+from dida_roofseg import model as model_mod  # model.py
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train roof segmentation (ultra-lean)")
+    p = argparse.ArgumentParser(description="Train roof segmentation (ultra lean)")
     p.add_argument("--data-dir", type=str, default="data/raw", help="Directory with images (+ masks)")
     p.add_argument("--ckpt-dir", type=str, default="models/checkpoints")
     p.add_argument("--epochs", type=int, default=20)
@@ -32,6 +39,15 @@ def parse_args():
 
 
 def main():
+    """
+    Flow:
+    - Set seed; discover 25 masked images and 5 test images by filename matching.
+    - Split masked images into train/val by --val-ratio (e.g., 0.2).
+    - Build RoofDatasets and DataLoaders.
+    - Create SegmentationModel(EncoderWrapper, DecoderUNetSmall).
+    - Instantiate Trainer and call fit().
+    - Print final val IoU/Dice and path to best.pth.
+    """
     args = parse_args()
     set_seed(args.seed, deterministic=True)
 
@@ -47,7 +63,7 @@ def main():
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
-    # ----- Build model (you implement EncoderWrapper/DecoderUNetSmall/SegmentationModel) -----
+    # ----- Build model -----
     encoder = model_mod.EncoderWrapper(name=args.encoder, pretrained=True, in_channels=args.in_channels)
     # You may expose encoder channels in your implementation if your decoder needs them.
     decoder = model_mod.DecoderUNetSmall(encoder_channels=None)  # adapt this to your design
