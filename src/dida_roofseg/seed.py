@@ -1,12 +1,18 @@
+# src/dida_roofseg/seed.py
+"""
+Set random seeds for reproducibility.
+Description: This module provides a function to set random seeds for Python, NumPy, and PyTorch.
+ It also allows toggling PyTorch's deterministic operations for reproducible results at the cost of speed.
+"""
+
 import os
 import random
-from typing import Optional
 
 import numpy as np
 import torch
 
 
-def set_seed(seed: int = 42, deterministic: bool = True, env_hash_seed: Optional[int] = None) -> None:
+def set_seed(seed: int = 42, deterministic: bool = True, env_hash_seed: int | None = None) -> None:
     """
     Set all relevant RNG seeds. Optionally toggle PyTorch deterministic ops.
     """

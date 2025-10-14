@@ -1,31 +1,51 @@
-import os
+# src/dida_roofseg/io.py
+
+"""
+Utilities for reading and writing images and masks.
+
+Description: this module provides functions to handle image and mask I/O operations, including:
+1. Listing & matching
+- list_images(dir) → list of image paths.
+- infer_test_images(raw_dir) → images without corresponding mask files (these 5 are the test set).
+- train_val_split(masked_images, val_ratio=0.2, seed=…) → simple reproducible split by filename.
+2. I/O utilities
+- read_image(path) → returns a normalized tensor (3,H,W) (no heavy transforms).
+- read_mask(path) → returns a binary mask tensor (1,H,W) from PNG.
+- save_mask(mask_tensor, out_path) → writes single-channel PNG from thresholded logits.
+- If resized in memory for training, store & restore original sizes during prediction.
+"""
+
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 import torch
+from torch import Tensor
 
 
+# Supported image extensions
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
 
 def _is_image(p: Path) -> bool:
+    """Check if a file has an image extension."""
     return p.suffix.lower() in IMG_EXTS
 
 
 def _stem_without_mask_suffix(stem: str) -> str:
-    # normalize "xxx_mask" -> "xxx" (common dataset naming)
+    """Normalize "xxx_mask" -> "xxx" (common dataset naming)."""
     return stem[:-5] if stem.endswith("_mask") else stem
 
 
-def list_files(root: str | Path) -> List[Path]:
+def list_files(root: str | Path) -> list[Path]:
+    """Recursively list all files in a directory."""
     root = Path(root)
     return [p for p in sorted(root.rglob("*")) if p.is_file()]
 
 
-def discover_pairs(raw_dir: str | Path) -> Tuple[List[Path], Dict[str, Path], List[Path]]:
+def discover_pairs(raw_dir: str | Path) -> tuple[list[Path], dict[str, Path], list[Path]]:
     """
+    Function to discover image/mask pairs and test images in a raw data directory.
     Returns:
       - all image paths that look like inputs,
       - dict: stem -> mask path for labeled samples,
@@ -55,13 +75,13 @@ def discover_pairs(raw_dir: str | Path) -> Tuple[List[Path], Dict[str, Path], Li
                 img_paths.append(p)
 
     # build mapping stem->mask
-    mask_map: Dict[str, Path] = {}
+    mask_map: dict[str, Path] = {}
     for m in mask_paths:
         stem = _stem_without_mask_suffix(m.stem)
         mask_map[stem] = m
 
-    labeled_images: List[Path] = []
-    test_images: List[Path] = []
+    labeled_images: list[Path] = []
+    test_images: list[Path] = []
     for im in img_paths:
         stem = im.stem
         norm_stem = _stem_without_mask_suffix(stem)
@@ -73,7 +93,11 @@ def discover_pairs(raw_dir: str | Path) -> Tuple[List[Path], Dict[str, Path], Li
     return labeled_images, mask_map, test_images
 
 
-def train_val_split(paths: List[Path], val_ratio: float = 0.2, seed: int = 42) -> Tuple[List[Path], List[Path]]:
+def train_val_split(paths: list[Path], val_ratio: float = 0.2, seed: int = 42) -> tuple[list[Path], list[Path]]:
+    """
+    Simple train/val split by shuffling and slicing.
+    Ensures at least one sample in val if possible.
+    """
     rng = np.random.default_rng(seed)
     idx = np.arange(len(paths))
     rng.shuffle(idx)
@@ -84,9 +108,18 @@ def train_val_split(paths: List[Path], val_ratio: float = 0.2, seed: int = 42) -
     return train, val
 
 
-def read_image(path: str | Path, image_size: Optional[int] = None) -> Tuple[torch.Tensor, Tuple[int, int]]:
+def read_image(path: str | Path, image_size: int | None = None) -> tuple[Tensor, tuple[int, int]]:
     """
     Returns a tensor (3,H,W) normalized to ImageNet mean/std, and the original (H,W).
+    If image_size is given, resizes to (image_size, image_size) with INTER_AREA.
+    Assumes input images are RGB.
+
+    Args:
+      path: path to image file.
+      image_size: if given, resize image to (image_size, image_size)
+    Returns:
+      tensor: (3,H,W) float32 tensor normalized to ImageNet stats.
+      orig_size: (H,W) of original image before any resizing.
     """
     path = str(path)
     img = cv2.imread(path, cv2.IMREAD_COLOR)
@@ -107,7 +140,7 @@ def read_image(path: str | Path, image_size: Optional[int] = None) -> Tuple[torc
     return tensor, (h0, w0)
 
 
-def read_mask(path: str | Path, image_size: Optional[int] = None) -> torch.Tensor:
+def read_mask(path: str | Path, image_size: int | None = None) -> Tensor:
     """
     Returns a binary tensor (1,H,W) in {0,1}.
     """
@@ -125,7 +158,7 @@ def read_mask(path: str | Path, image_size: Optional[int] = None) -> torch.Tenso
     return tensor
 
 
-def save_mask(mask_tensor: torch.Tensor, out_path: str | Path) -> None:
+def save_mask(mask_tensor: Tensor, out_path: str | Path) -> None:
     """
     Save a binary mask tensor (H,W) or (1,H,W) to PNG with values {0,255}.
     """

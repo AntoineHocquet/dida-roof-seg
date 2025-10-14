@@ -19,7 +19,15 @@ from dida_roofseg import model as model_mod  # model.py
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train roof segmentation (ultra lean)")
+    """
+    Parse command-line arguments.
+    Output is argparse.Namespace with args as attributes.
+    Example usage:
+      args = parse_args()
+      print(args.epochs, args.batch_size, args.lr_encoder)
+    20 4 0.0001
+    """
+    p = argparse.ArgumentParser(description="Train roof segmentation")
     p.add_argument("--data-dir", type=str, default="data/raw", help="Directory with images (+ masks)")
     p.add_argument("--ckpt-dir", type=str, default="models/checkpoints")
     p.add_argument("--epochs", type=int, default=20)

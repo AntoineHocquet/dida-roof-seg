@@ -1,11 +1,20 @@
+# src/dida_roofseg/engine.py
+
+"""
+Engine for training and inference.
+Description:
+ This module provides Trainer and Predictor classes to handle model training and inference.
+ It includes implementations of common losses and metrics for binary segmentation tasks.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
+from torch import Tensor
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -13,12 +22,21 @@ from tqdm import tqdm
 
 # -------------------------
 # Losses and metrics
+# logits: (B,1,H,W), preds/targets: expected (B,1,H,W) in {0,1}
+# 0 = perfect, 1 = worst
 # -------------------------
-def bce_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+def bce_loss(logits: Tensor, targets: Tensor) -> Tensor:
+    """
+    Binary Cross-Entropy with Logits loss.
+    """
     return nn.functional.binary_cross_entropy_with_logits(logits, targets)
 
 
-def dice_loss(logits: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+def dice_loss(logits: Tensor, targets: Tensor, eps: float = 1e-6) -> Tensor:
+    """
+    Dice loss (1 - Dice coefficient) for binary masks.
+    Formula: 1 - 2*|P∩T|/(|P|+|T|) = 1 - (2*sum(P*T)+eps)/(sum(P)+sum(T)+eps)
+    """
     probs = torch.sigmoid(logits)
     num = 2.0 * torch.sum(probs * targets) + eps
     den = torch.sum(probs) + torch.sum(targets) + eps
@@ -26,20 +44,30 @@ def dice_loss(logits: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) ->
     return 1.0 - dice
 
 
-def bce_dice_loss(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+def bce_dice_loss(logits: Tensor, targets: Tensor) -> Tensor:
+    """
+    Combined BCE + Dice loss.
+    """
     return bce_loss(logits, targets) + dice_loss(logits, targets)
 
 
-@torch.no_grad()
-def compute_iou(preds: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> float:
-    # preds/targets expected binary in {0,1}
+@torch.no_grad() # disable grad for metrics
+def compute_iou(preds: Tensor, targets: Tensor, eps: float = 1e-6) -> float:
+    """
+    Compute Intersection over Union (IoU) for binary masks.
+    Formula: |P∩T|/|P∪T| = (sum(P*T)+eps)/(sum((P+T)>=1)+eps)
+    """
     inter = torch.sum(preds * targets).item()
     union = torch.sum((preds + targets) >= 1).item()
     return float((inter + eps) / (union + eps))
 
 
-@torch.no_grad()
-def compute_dice(preds: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) -> float:
+@torch.no_grad() # disable grad for metrics
+def compute_dice(preds: Tensor, targets: Tensor, eps: float = 1e-6) -> float:
+    """
+    Compute Dice coefficient for binary masks.
+    Formula: 2*|P∩T|/(|P|+|T|) = (2*sum(P*T)+eps)/(sum(P)+sum(T)+eps)
+    """
     inter = torch.sum(preds * targets).item()
     s = torch.sum(preds).item() + torch.sum(targets).item()
     return float((2 * inter + eps) / (s + eps))
@@ -50,6 +78,9 @@ def compute_dice(preds: torch.Tensor, targets: torch.Tensor, eps: float = 1e-6) 
 # -------------------------
 @dataclass
 class TrainConfig:
+    """
+    Configuration for training (hyperparameters).
+    """
     epochs: int = 20
     batch_size: int = 4
     lr_encoder: float = 1e-4
@@ -61,6 +92,9 @@ class TrainConfig:
 
 
 class Trainer:
+    """
+    Trainer for the model (OOP).
+    """
     def __init__(
         self,
         model: nn.Module,
@@ -105,8 +139,14 @@ class Trainer:
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.opt, T_max=self.cfg.epochs)
 
     def _train_one_epoch(self, epoch: int, frozen: bool) -> float:
+        """
+        Helper to train for one epoch.
+        Setting `frozen` to True will freeze the encoder parameters (i.e. training will affect only the decoder).
+        """
         self.model.train()
         total_loss = 0.0
+        num_examples = 0
+
         for imgs, masks in tqdm(self.train_loader, desc=f"Epoch {epoch+1} [{'FROZEN' if frozen else 'FT'}]"):
             imgs = imgs.to(self.device, non_blocking=True)
             masks = masks.to(self.device, non_blocking=True)
@@ -115,34 +155,50 @@ class Trainer:
             loss = bce_dice_loss(logits, masks)
             loss.backward()
             self.opt.step()
-            total_loss += loss.item() * imgs.size(0)
-        return total_loss / len(self.train_loader.dataset)
+
+            bsz = imgs.size(0) # batch size (may be smaller on last batch)
+            total_loss += loss.item() * bsz # sum loss over batch
+            num_examples += bsz # count examples
+
+        return total_loss / max(1, num_examples) # avoid div by zero
 
     @torch.no_grad()
-    def _validate(self) -> Tuple[float, float, float]:
+    def _validate(self) -> tuple[float, float, float]:
+        """
+        Helper to validate on the validation set.
+        """
         self.model.eval()
         total_loss = 0.0
+        num_examples = 0
         ious = []
         dices = []
         th = self.cfg.threshold
+
         for imgs, masks in self.val_loader:
             imgs = imgs.to(self.device, non_blocking=True)
             masks = masks.to(self.device, non_blocking=True)
             logits = self.model(imgs)
             loss = bce_dice_loss(logits, masks)
-            total_loss += loss.item() * imgs.size(0)
+
+            bsz = imgs.size(0)
+            total_loss += loss.item() * bsz
+            num_examples += bsz
 
             probs = torch.sigmoid(logits)
             preds = (probs >= th).float()
             ious.append(compute_iou(preds, masks))
             dices.append(compute_dice(preds, masks))
 
-        val_loss = total_loss / len(self.val_loader.dataset)
+        val_loss = total_loss / max(1, num_examples)
         iou = float(np.mean(ious)) if ious else 0.0
         dice = float(np.mean(dices)) if dices else 0.0
         return val_loss, iou, dice
 
     def fit(self) -> Path:
+        """
+        Main training loop.
+        Returns the path to the best checkpoint.
+        """
         # Try to freeze encoder parameters during warmup if encoder exposes .freeze()
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "freeze"):
             self.model.encoder.freeze()
@@ -172,6 +228,9 @@ class Trainer:
 
 
 class Predictor:
+    """
+    Predictor for inference using a trained model.
+    """
     def __init__(self, model: nn.Module, ckpt_path: str | Path, device: str = "cpu", threshold: float = 0.5):
         self.model = model
         self.device = torch.device(device)
@@ -186,7 +245,7 @@ class Predictor:
         self.model.eval()
 
     @torch.no_grad()
-    def predict_batch(self, imgs: torch.Tensor) -> torch.Tensor:
+    def predict_batch(self, imgs: Tensor) -> Tensor:
         logits = self.model(imgs.to(self.device, non_blocking=True))
         probs = torch.sigmoid(logits)
         preds = (probs >= self.threshold).float()
