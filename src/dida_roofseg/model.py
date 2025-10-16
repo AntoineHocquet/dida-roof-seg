@@ -169,7 +169,7 @@ class DecoderUNetSmall(nn.Module):
     """
     def __init__(
         self,
-        encoder_channels: list[int],
+        encoder_channels: list[int] | None,
         out_channels: int = 1,
         base_dec: int = 64
     ):

@@ -19,4 +19,4 @@ clean:
 	
 
 run:
-	python -m src.train
+	PYTHONPATH=src python src/dida_roofseg/train.py --epochs 1

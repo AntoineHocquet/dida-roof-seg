@@ -39,7 +39,7 @@ def parse_args():
     p.add_argument("--val-ratio", type=float, default=0.2)
     p.add_argument("--image-size", type=int, default=512, help="Resize square side (None to skip)")
     p.add_argument("--encoder", type=str, default="resnet18", choices=["resnet18", "resnet34", "resnet50"])
-    p.add_argument("--in-channels", type=int, default=3)
+    #p.add_argument("--in-channels", type=int, default=3)
     p.add_argument("--threshold", type=float, default=0.5)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu")
@@ -72,9 +72,8 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     # ----- Build model -----
-    encoder = model_mod.EncoderWrapper(name=args.encoder, pretrained=True, in_channels=args.in_channels)
-    # You may expose encoder channels in your implementation if your decoder needs them.
-    decoder = model_mod.DecoderUNetSmall(encoder_channels=None)  # adapt this to your design
+    encoder = model_mod.EncoderWrapper(name=args.encoder, pretrained=True) # in_channels=args.in_channels
+    decoder = model_mod.DecoderUNetSmall(encoder_channels=encoder.feature_channels)  # adapted to encoder
     model = model_mod.SegmentationModel(encoder=encoder, decoder=decoder)
 
     cfg = TrainConfig(
@@ -88,7 +87,13 @@ def main():
         device=args.device,
     )
 
-    trainer = Trainer(model=model, train_loader=train_loader, val_loader=val_loader, cfg=cfg, ckpt_dir=args.ckpt_dir)
+    trainer = Trainer(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        cfg=cfg,
+        ckpt_dir=args.ckpt_dir
+    )
     best_path = trainer.fit()
     print(f"[done] Best checkpoint saved at: {best_path}")
 
