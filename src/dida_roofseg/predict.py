@@ -1,3 +1,10 @@
+# src/dida_roofseg/predict.py
+
+"""
+Predict roof segmentation masks for test images.
+Argparse CLI with sane defaults (no config files)
+"""
+
 import argparse
 from pathlib import Path
 
@@ -8,7 +15,7 @@ from dida_roofseg.dataset import RoofDataset
 from dida_roofseg.engine import Predictor
 from dida_roofseg.io import discover_pairs, save_mask
 from dida_roofseg.seed import set_seed
-from dida_roofseg import model as model_mod  # your model.py
+from dida_roofseg import model as model_mod
 
 
 def parse_args():
@@ -18,7 +25,7 @@ def parse_args():
     p.add_argument("--pred-dir", type=str, default="outputs/predictions")
     p.add_argument("--image-size", type=int, default=512)
     p.add_argument("--encoder", type=str, default="resnet18", choices=["resnet18", "resnet34", "resnet50"])
-    p.add_argument("--in-channels", type=int, default=3)
+    #p.add_argument("--in-channels", type=int, default=3)
     p.add_argument("--threshold", type=float, default=0.5)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cpu")
@@ -36,8 +43,8 @@ def main():
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
 
     # Build the same model shape used in training
-    encoder = model_mod.EncoderWrapper(name=args.encoder, pretrained=False, in_channels=args.in_channels)
-    decoder = model_mod.DecoderUNetSmall(encoder_channels=None)  # align with your model.py
+    encoder = model_mod.EncoderWrapper(name=args.encoder, pretrained=False)
+    decoder = model_mod.DecoderUNetSmall(encoder_channels=encoder.feature_channels)
     model = model_mod.SegmentationModel(encoder=encoder, decoder=decoder)
 
     predictor = Predictor(model=model, ckpt_path=args.ckpt_path, device=args.device, threshold=args.threshold)

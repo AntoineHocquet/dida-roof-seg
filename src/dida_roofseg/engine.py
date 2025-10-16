@@ -93,7 +93,7 @@ class TrainConfig:
 
 class Trainer:
     """
-    Trainer for the model (OOP).
+    Trainer for the model (OOP- style).
     """
     def __init__(
         self,
@@ -222,6 +222,7 @@ class Trainer:
             if val_iou > self.best_iou:
                 self.best_iou = val_iou
                 torch.save({"state_dict": self.model.state_dict()}, self.best_path)
+                torch.save(self.model.state_dict(), self.best_path)
                 print(f"  ✔ Saved new best checkpoint: {self.best_path} (IoU={val_iou:.4f})")
 
         return self.best_path
@@ -239,13 +240,17 @@ class Predictor:
         self._load(ckpt_path)
 
     def _load(self, ckpt_path: str | Path) -> None:
-        ckpt = torch.load(ckpt_path, map_location=self.device)
-        state = ckpt.get("state_dict", ckpt)
+        #ckpt = torch.load(ckpt_path, map_location=self.device)
+        #state = ckpt.get("state_dict", ckpt)
+        state = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(state, strict=True)
         self.model.eval()
 
     @torch.no_grad()
     def predict_batch(self, imgs: Tensor) -> Tensor:
+        """
+        Single convenience method to predict a batch of images.
+        """
         logits = self.model(imgs.to(self.device, non_blocking=True))
         probs = torch.sigmoid(logits)
         preds = (probs >= self.threshold).float()
