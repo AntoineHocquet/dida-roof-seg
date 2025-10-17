@@ -221,7 +221,7 @@ class Trainer:
 
             if val_iou > self.best_iou:
                 self.best_iou = val_iou
-                torch.save({"state_dict": self.model.state_dict()}, self.best_path)
+                #torch.save({"state_dict": self.model.state_dict()}, self.best_path)
                 torch.save(self.model.state_dict(), self.best_path)
                 print(f"  ✔ Saved new best checkpoint: {self.best_path} (IoU={val_iou:.4f})")
 
@@ -250,6 +250,10 @@ class Predictor:
     def predict_batch(self, imgs: Tensor) -> Tensor:
         """
         Single convenience method to predict a batch of images.
+        Args:
+            imgs: (B,C,H,W) tensor of input images.
+        Returns:
+            (B,1,H,W) tensor of predicted binary masks.
         """
         logits = self.model(imgs.to(self.device, non_blocking=True))
         probs = torch.sigmoid(logits)

@@ -139,6 +139,7 @@ def plot_batch(
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(save_path, bbox_inches="tight", dpi=150)
+        print(f"Saved plot to {save_path}")
     if show:
         plt.show()
     plt.close(fig)
@@ -186,3 +187,66 @@ def save_masks(
         written.append(p)
 
     return written
+
+
+def dummy_plot():
+    # Simple test
+    import torch
+
+    B, C, H, W = 2, 3, 128, 128
+    imgs = torch.rand(B, C, H, W)
+    preds = torch.rand(B, 1, H, W)
+    masks = (torch.rand(B, 1, H, W) > 0.5).float()
+
+    plot_batch(
+        imgs,
+        preds,
+        masks,
+        max_n=2,
+        title="Test Plot",
+        save_path="test_plot.png",
+        show=False,
+        overlay_alpha=0.5,
+    )
+
+    save_masks(preds, out_dir="test_masks", threshold=0.5, prefix="test_pred")
+
+def main():
+    # Build the same model shape used in training
+
+    from dida_roofseg.dataset import RoofDataset
+    from torch.utils.data import DataLoader
+    from dida_roofseg.io import discover_pairs
+    from dida_roofseg import model as model_mod
+    from dida_roofseg.engine import Predictor
+
+    labeled_images, mask_map, test_images = discover_pairs("data/raw")
+    test_ds = RoofDataset(mode="val", image_paths=labeled_images, mask_dir_map=mask_map, image_size=512)
+    #breakpoint()
+
+    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
+
+    encoder = model_mod.EncoderWrapper(name="resnet18", pretrained=False)
+    decoder = model_mod.DecoderUNetSmall(encoder_channels=encoder.feature_channels)
+    model = model_mod.SegmentationModel(encoder=encoder, decoder=decoder)
+
+    predictor = Predictor(model=model, ckpt_path="models/checkpoints/best.pth")
+
+    # create a batch
+    imgs,masks=next(iter(test_loader))
+    preds=predictor.predict_batch(imgs)
+
+    plot_batch(
+        imgs,
+        preds,
+        masks,
+        max_n=2,
+        title="Test Plot",
+        save_path="test_plot.png",
+        show=False,
+        overlay_alpha=0.5,
+    )
+    
+if __name__ == "__main__":
+    main()
+
