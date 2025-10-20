@@ -1,0 +1,40 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dida-roofseg"
+version = "0.1.0"
+description = "Roof segmentation using deep learning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Antoine Hocquet", email = "antoine.hocquet86@gmail.com" }]
+
+# Runtime dependencies
+dependencies = [
+  "torch>=2.6",
+  "torchvision>=0.17",
+  "numpy>=1.26",
+  "pillow>=10",
+  "tqdm>=4.66",
+  "matplotlib>=3.7",
+]
+
+# Development dependencies
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+  "black>=24.0",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+dida-roofseg = "dida_roofseg.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dida_roofseg*"]

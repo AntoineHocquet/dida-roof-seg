@@ -232,8 +232,20 @@ def main():
 
     predictor = Predictor(model=model, ckpt_path="models/checkpoints/best.pth")
 
-    # create a batch
+    # create a batch of one image
     imgs,masks=next(iter(test_loader))
+    preds=predictor.predict_batch(imgs)
+
+    # create a batch of 5 images
+    imgs_list=[]
+    masks_list=[]
+    for i,(imgs_batch,masks_batch) in enumerate(test_loader):
+        imgs_list.append(imgs_batch)
+        masks_list.append(masks_batch)
+        if i>=4:
+            break
+    imgs=torch.cat(imgs_list,dim=0)
+    masks=torch.cat(masks_list,dim=0)
     preds=predictor.predict_batch(imgs)
 
     plot_batch(

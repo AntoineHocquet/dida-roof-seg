@@ -19,4 +19,4 @@ clean:
 	
 
 run:
-	PYTHONPATH=src python src/dida_roofseg/train.py --epochs 20
+	PYTHONPATH=src python src/dida_roofseg/cli.py train --epochs 10
