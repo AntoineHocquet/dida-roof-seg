@@ -1,6 +1,6 @@
 # Makefile for the task
 
-.PHONY: install test run clean
+.PHONY: install test run clean tree
 
 install:
 	pip install -r requirements.txt
@@ -16,7 +16,9 @@ clean:
 	rm -rf .pytest_cache
 	rm -rf src/*.egg-info
 	rm -rf src/dida_roofseg/__pycache__
-	
 
-run:
-	PYTHONPATH=src python src/dida_roofseg/cli.py train --epochs 10
+tree:
+	eza --tree --git-ignore --all --level=3   --ignore-glob '.idea|.vscode|dist|build|*.egg-info|venv|.gitignore|.gitkeep'
+
+## variant using 'tree' command
+# tree -a -L 3 -I 'venv|.git|__pycache__|.mypy_cache|.pytest_cache|.ruff_cache|.idea|.vscode|node_modules|dist|build|*.egg-info'

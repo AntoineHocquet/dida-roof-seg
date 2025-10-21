@@ -5,15 +5,14 @@ Usage:
   python -m dida_roofseg.cli train   [args...]
   python -m dida_roofseg.cli predict [args...]
 
-(Optional) Install an entry point for 'dida-roofseg' in pyproject.toml.
+Entry point for 'dida-roofseg' is in pyproject.toml under [project.scripts]:
+dida-roofseg = "dida_roofseg.cli:main"
 """
 
 from __future__ import annotations
 import argparse
 from pathlib import Path
-from typing import Tuple
 
-import torch
 from torch.utils.data import DataLoader
 
 from dida_roofseg.dataset import RoofDataset
@@ -31,7 +30,7 @@ def add_shared_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--encoder", type=str, default="resnet18",
                    choices=["resnet18", "resnet34", "resnet50"],
                    help="Backbone encoder.")
-    p.add_argument("--image-size", type=int, default=512,
+    p.add_argument("--image-size", type=int, default=128, # should be a multiple of 32 (original images are 256x256)
                    help="Resize (square) side. Use same at train/predict for consistency.")
     p.add_argument("--threshold", type=float, default=0.5,
                    help="Binarization threshold for metrics/predictions.")
