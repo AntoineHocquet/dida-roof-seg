@@ -30,7 +30,7 @@ def add_shared_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--encoder", type=str, default="resnet18",
                    choices=["resnet18", "resnet34", "resnet50"],
                    help="Backbone encoder.")
-    p.add_argument("--image-size", type=int, default=128, # should be a multiple of 32 (original images are 256x256)
+    p.add_argument("--image-size", type=int, default=256, # should be a multiple of 32 (original images are 256x256)
                    help="Resize (square) side. Use same at train/predict for consistency.")
     p.add_argument("--threshold", type=float, default=0.5,
                    help="Binarization threshold for metrics/predictions.")
