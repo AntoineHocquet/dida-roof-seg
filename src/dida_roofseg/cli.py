@@ -99,11 +99,12 @@ def run_train(args: argparse.Namespace) -> None:
     )
 
     trainer = Trainer(model=model, train_loader=train_loader, val_loader=val_loader, cfg=cfg, ckpt_dir=args.ckpt_dir)
-    best_path_iou, best_path_dice, last_path = trainer.fit()
+    best_path_iou, best_path_dice, last_path, history_path = trainer.fit()
     print(
         f"\n[Training done]: Best IoU checkpoint saved at: {best_path_iou.resolve()}",
         f"\n         Best Dice checkpoint saved at: {best_path_dice.resolve()}",
-        f"\n         Last checkpoint saved at: {last_path.resolve()}"
+        f"\n         Last checkpoint saved at: {last_path.resolve()}",
+        f"\n         Training history saved at: {history_path.resolve()}"
     )
 
 

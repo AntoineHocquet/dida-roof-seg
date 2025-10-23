@@ -62,6 +62,31 @@ def _ensure_matplotlib():
         ) from e
 
 
+def plot_learning_curves(
+    history: dict[str, list[float]],
+    *,
+    save_path: str | Path | None = None,
+    show: bool = False,
+) -> None:
+    """
+    Plot learning curves from history dict.
+    """
+    _ensure_matplotlib()
+    import matplotlib.pyplot as plt
+
+    plt.plot(history["train_loss"], label="train")
+    plt.plot(history["val_loss"], label="val")
+    plt.plot(history["val_iou"], label="val iou")
+    plt.plot(history["val_dice"], label="val dice")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    if save_path is not None:
+        plt.savefig(save_path)
+    if show:
+        plt.show()
+
+
 def plot_batch(
     imgs: Tensor,
     preds: Tensor,

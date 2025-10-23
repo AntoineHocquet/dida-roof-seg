@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 
 import numpy as np
 import torch
@@ -121,6 +122,7 @@ class Trainer:
         self.best_path_iou = self.ckpt_dir / "best_iou.pth"
         self.best_path_dice = self.ckpt_dir / "best_dice.pth"
         self.last_path = self.ckpt_dir / "last.pth"
+        self.history_path = self.ckpt_dir / "history.csv"
         self.best_iou = -np.inf
         self.best_dice = -np.inf
 
@@ -203,25 +205,42 @@ class Trainer:
         dice = float(np.mean(dices)) if dices else 0.0
         return val_loss, iou, dice
 
-    def fit(self) -> tuple[Path, Path, Path]:
+    def fit(self) -> tuple[Path, Path, Path, Path]:
         """
         Main training loop.
-        Returns the paths to the best IoU and Dice checkpoints, as well as the last checkpoint.
+        Returns the paths to the best IoU and Dice checkpoints, as well as the last checkpoint and the training history.
         """
         # Try to freeze encoder parameters during warmup if encoder exposes .freeze()
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "freeze"):
             self.model.encoder.freeze()
+        
+        # initialize learning curves
+        train_loss_curve = []
+        val_loss_curve = []
+        val_iou_curve = []
+        val_dice_curve = []
 
+        # Train (start loop)
         for epoch in range(self.cfg.epochs):
             frozen_phase = epoch < self.cfg.freeze_encoder_epochs
             if not frozen_phase and hasattr(self.model, "encoder") and hasattr(self.model.encoder, "unfreeze"):
                 # ensure unfrozen after warmup
                 self.model.encoder.unfreeze()
 
+            # Compute losses
             train_loss = self._train_one_epoch(epoch, frozen=frozen_phase)
             val_loss, val_iou, val_dice = self._validate()
+
+            # Update learning curves
+            train_loss_curve.append(train_loss)
+            val_loss_curve.append(val_loss)
+            val_iou_curve.append(val_iou)
+            val_dice_curve.append(val_dice)
+
+            # Update learning rate
             self.scheduler.step()
 
+            # Print progress
             print(
                 f"Epoch {epoch+1}/{self.cfg.epochs} | "
                 f"train_loss={train_loss:.4f} | val_loss={val_loss:.4f} "
@@ -244,7 +263,19 @@ class Trainer:
         torch.save(self.model.state_dict(), self.last_path)
         print(f"  Saved last checkpoint: {self.last_path} (Epochs={self.cfg.epochs})")
 
-        return self.best_path_iou, self.best_path_dice, self.last_path
+        # Save learning curves as JSON
+        history = {
+            "train_loss": train_loss_curve,
+            "val_loss": val_loss_curve,
+            "val_iou": val_iou_curve,
+            "val_dice": val_dice_curve,
+        }
+        with open(self.ckpt_dir / "history.json", "w") as f:
+            json.dump(history, f)
+            print(f"  Saved learning curves: {self.history_path}")
+
+
+        return self.best_path_iou, self.best_path_dice, self.last_path, self.history_path
 
 
 class Predictor:
