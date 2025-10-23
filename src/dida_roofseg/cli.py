@@ -69,6 +69,8 @@ def configure_train_parser(subparsers) -> None:
 
 
 def run_train(args: argparse.Namespace) -> None:
+    # Set seed for reproducibility
+    # (Comment out the next line if you prefer faster, slightly nondeterministic training)
     set_seed(args.seed, deterministic=True)
 
     labeled_images, mask_map, test_images = discover_pairs(args.data_dir)
@@ -97,8 +99,12 @@ def run_train(args: argparse.Namespace) -> None:
     )
 
     trainer = Trainer(model=model, train_loader=train_loader, val_loader=val_loader, cfg=cfg, ckpt_dir=args.ckpt_dir)
-    best_path = trainer.fit()
-    print(f"[done] Best checkpoint saved at: {best_path}")
+    best_path_iou, best_path_dice, last_path = trainer.fit()
+    print(
+        f"\n[Training done]: Best IoU checkpoint saved at: {best_path_iou.resolve()}",
+        f"\n         Best Dice checkpoint saved at: {best_path_dice.resolve()}",
+        f"\n         Last checkpoint saved at: {last_path.resolve()}"
+    )
 
 
 # -------------------------
@@ -109,8 +115,8 @@ def configure_predict_parser(subparsers) -> None:
     pp = subparsers.add_parser("predict", help="Predict masks for test images.")
     pp.add_argument("--data-dir", type=str, default="data/raw",
                     help="Directory containing images (test images have no masks).")
-    pp.add_argument("--ckpt-path", type=str, default="models/checkpoints/best.pth",
-                    help="Path to checkpoint to load.")
+    pp.add_argument("--ckpt-path", type=str, default="models/checkpoints/best_path_iou.pth",
+                    help="Path to checkpoint to load, defaults to best IoU.")
     pp.add_argument("--pred-dir", type=str, default="outputs/predictions",
                     help="Directory to save predicted masks.")
     pp.add_argument("--batch-size", type=int, default=1,

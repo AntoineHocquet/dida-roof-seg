@@ -1,5 +1,9 @@
 # src/dida_roofseg/viz.py
 
+"""
+Utilities for visualization.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

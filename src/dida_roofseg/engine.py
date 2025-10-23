@@ -5,6 +5,7 @@ Engine for training and inference.
 Description:
  This module provides Trainer and Predictor classes to handle model training and inference.
  It includes implementations of common losses and metrics for binary segmentation tasks.
+ The 
 """
 
 from __future__ import annotations
@@ -24,18 +25,21 @@ from tqdm import tqdm
 # Losses and metrics
 # logits: (B,1,H,W), preds/targets: expected (B,1,H,W) in {0,1}
 # 0 = perfect, 1 = worst
+# P=preds, T=targets and eps = small constant to avoid division by zero.
 # -------------------------
 def bce_loss(logits: Tensor, targets: Tensor) -> Tensor:
     """
     Binary Cross-Entropy with Logits loss.
+    Formula: -sum(T*log(P) + (1-T)*log(1-P))
     """
     return nn.functional.binary_cross_entropy_with_logits(logits, targets)
 
 
 def dice_loss(logits: Tensor, targets: Tensor, eps: float = 1e-6) -> Tensor:
     """
-    Dice loss (1 - Dice coefficient) for binary masks.
+    Dice loss (1 - Dice coefficient) for binary masks 
     Formula: 1 - 2*|P∩T|/(|P|+|T|) = 1 - (2*sum(P*T)+eps)/(sum(P)+sum(T)+eps)
+    (this is a loss, so lower is better).
     """
     probs = torch.sigmoid(logits)
     num = 2.0 * torch.sum(probs * targets) + eps
@@ -56,6 +60,7 @@ def compute_iou(preds: Tensor, targets: Tensor, eps: float = 1e-6) -> float:
     """
     Compute Intersection over Union (IoU) for binary masks.
     Formula: |P∩T|/|P∪T| = (sum(P*T)+eps)/(sum((P+T)>=1)+eps)
+    (This is a performance indicator, so higher is better.)
     """
     inter = torch.sum(preds * targets).item()
     union = torch.sum((preds + targets) >= 1).item()
@@ -67,6 +72,7 @@ def compute_dice(preds: Tensor, targets: Tensor, eps: float = 1e-6) -> float:
     """
     Compute Dice coefficient for binary masks.
     Formula: 2*|P∩T|/(|P|+|T|) = (2*sum(P*T)+eps)/(sum(P)+sum(T)+eps)
+    (Performance indicator, higher is better.)
     """
     inter = torch.sum(preds * targets).item()
     s = torch.sum(preds).item() + torch.sum(targets).item()
@@ -112,8 +118,11 @@ class Trainer:
 
         self.ckpt_dir = Path(ckpt_dir)
         self.ckpt_dir.mkdir(parents=True, exist_ok=True)
-        self.best_path = self.ckpt_dir / "best.pth"
+        self.best_path_iou = self.ckpt_dir / "best_iou.pth"
+        self.best_path_dice = self.ckpt_dir / "best_dice.pth"
+        self.last_path = self.ckpt_dir / "last.pth"
         self.best_iou = -np.inf
+        self.best_dice = -np.inf
 
         # separate parameter groups (encoder vs. decoder) if exposed
         encoder_params = []
@@ -194,10 +203,10 @@ class Trainer:
         dice = float(np.mean(dices)) if dices else 0.0
         return val_loss, iou, dice
 
-    def fit(self) -> Path:
+    def fit(self) -> tuple[Path, Path, Path]:
         """
         Main training loop.
-        Returns the path to the best checkpoint.
+        Returns the paths to the best IoU and Dice checkpoints, as well as the last checkpoint.
         """
         # Try to freeze encoder parameters during warmup if encoder exposes .freeze()
         if hasattr(self.model, "encoder") and hasattr(self.model.encoder, "freeze"):
@@ -219,13 +228,23 @@ class Trainer:
                 f"| val_iou={val_iou:.4f} | val_dice={val_dice:.4f}"
             )
 
+            # Save checkpoint if IoU has improved
             if val_iou > self.best_iou:
                 self.best_iou = val_iou
-                #torch.save({"state_dict": self.model.state_dict()}, self.best_path)
-                torch.save(self.model.state_dict(), self.best_path)
-                print(f"  ✔ Saved new best checkpoint: {self.best_path} (IoU={val_iou:.4f})")
+                torch.save(self.model.state_dict(), self.best_path_iou)
+                print(f"  ✔ Saved new best checkpoint: {self.best_path_iou} (IoU={val_iou:.4f})")
 
-        return self.best_path
+            # Save checkpoint if Dice has improved
+            if val_dice > self.best_dice:
+                self.best_dice = val_dice
+                torch.save(self.model.state_dict(), self.best_path_dice)
+                print(f"  ✔ Saved new best checkpoint: {self.best_path_dice} (Dice={val_dice:.4f})")
+
+        # Always save last checkpoint
+        torch.save(self.model.state_dict(), self.last_path)
+        print(f"  Saved last checkpoint: {self.last_path} (Epochs={self.cfg.epochs})")
+
+        return self.best_path_iou, self.best_path_dice, self.last_path
 
 
 class Predictor:
@@ -240,12 +259,10 @@ class Predictor:
         self._load(ckpt_path)
 
     def _load(self, ckpt_path: str | Path) -> None:
-        #ckpt = torch.load(ckpt_path, map_location=self.device)
-        #state = ckpt.get("state_dict", ckpt)
         state = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(state, strict=True)
         self.model.eval()
-
+    
     @torch.no_grad()
     def predict_batch(self, imgs: Tensor) -> Tensor:
         """
