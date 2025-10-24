@@ -1,6 +1,6 @@
 # Makefile for the task
 
-.PHONY: install test run clean tree
+.PHONY: install test run clean tree viz
 
 install:
 	pip install -r requirements.txt
@@ -22,3 +22,6 @@ tree:
 
 ## variant using 'tree' command
 # tree -a -L 3 -I 'venv|.git|__pycache__|.mypy_cache|.pytest_cache|.ruff_cache|.idea|.vscode|node_modules|dist|build|*.egg-info'
+
+viz:
+	PYTHONPATH=./src python src/dida_roofseg/viz.py && open outputs/learning_curves.png

@@ -74,13 +74,13 @@ def plot_learning_curves(
     _ensure_matplotlib()
     import matplotlib.pyplot as plt
 
-    plt.plot(history["train_loss"], label="train")
-    plt.plot(history["val_loss"], label="val")
-    plt.plot(history["val_iou"], label="val iou")
-    plt.plot(history["val_dice"], label="val dice")
+    plt.plot(history["train_loss"], label="training loss")
+    plt.plot(history["val_loss"], label="validation loss")
+    plt.plot(history["val_iou"], label="validation IoU")
+    plt.plot(history["val_dice"], label="validation dice")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.legend()
+    plt.legend(bbox_to_anchor=(0.5, 0.5))
     if save_path is not None:
         plt.savefig(save_path)
     if show:
@@ -239,55 +239,14 @@ def dummy_plot():
     )
 
     save_masks(preds, out_dir="test_masks", threshold=0.5, prefix="test_pred")
-
-def main():
-    # Build the same model shape used in training
-
-    from dida_roofseg.dataset import RoofDataset
-    from torch.utils.data import DataLoader
-    from dida_roofseg.io import discover_pairs
-    from dida_roofseg import model as model_mod
-    from dida_roofseg.engine import Predictor
-
-    labeled_images, mask_map, test_images = discover_pairs("data/raw")
-    test_ds = RoofDataset(mode="val", image_paths=labeled_images, mask_dir_map=mask_map, image_size=512)
-    #breakpoint()
-
-    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
-
-    encoder = model_mod.EncoderWrapper(name="resnet18", pretrained=False)
-    decoder = model_mod.DecoderUNetSmall(encoder_channels=encoder.feature_channels)
-    model = model_mod.SegmentationModel(encoder=encoder, decoder=decoder)
-
-    predictor = Predictor(model=model, ckpt_path="models/checkpoints/best.pth")
-
-    # create a batch of one image
-    imgs,masks=next(iter(test_loader))
-    preds=predictor.predict_batch(imgs)
-
-    # create a batch of 5 images
-    imgs_list=[]
-    masks_list=[]
-    for i,(imgs_batch,masks_batch) in enumerate(test_loader):
-        imgs_list.append(imgs_batch)
-        masks_list.append(masks_batch)
-        if i>=4:
-            break
-    imgs=torch.cat(imgs_list,dim=0)
-    masks=torch.cat(masks_list,dim=0)
-    preds=predictor.predict_batch(imgs)
-
-    plot_batch(
-        imgs,
-        preds,
-        masks,
-        max_n=2,
-        title="Test Plot",
-        save_path="test_plot.png",
-        show=False,
-        overlay_alpha=0.5,
-    )
     
 if __name__ == "__main__":
-    main()
+    import json
+    # load the history.json file
+    with open("models/checkpoints/history.json", "r") as f:
+        history = json.load(f)
+
+    # plot the learning curves
+    plot_learning_curves(history, save_path="outputs/learning_curves.png", show=True)
+    
 
