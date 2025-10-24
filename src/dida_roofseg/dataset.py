@@ -35,7 +35,7 @@ class RoofDataset(Dataset[tuple[Tensor, Tensor]]):
     ) -> None:
         """
         Args:
-          - mode: "train", "val", or "test"
+          - mode: "train", "val", or "test".
           - image_paths: list of image file paths
           - mask_dir_map: dict mapping image stem to mask path (required for train/val)
           - image_size: if given, resize images/masks to (image_size, image_size)
