@@ -12,7 +12,9 @@ dida-roofseg = "dida_roofseg.cli:main"
 from __future__ import annotations
 import argparse
 from pathlib import Path
+import json
 
+import torch
 from torch.utils.data import DataLoader
 
 from dida_roofseg.dataset import RoofDataset
@@ -20,7 +22,7 @@ from dida_roofseg.engine import Trainer, TrainConfig, Predictor
 from dida_roofseg.io import discover_pairs, train_val_split, save_mask
 from dida_roofseg.seed import set_seed
 from dida_roofseg import model as model_mod  # model.py
-
+from dida_roofseg.viz import plot_batch, plot_learning_curves
 
 # -------------------------
 # Shared helpers
@@ -37,13 +39,61 @@ def add_shared_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--seed", type=int, default=42, help="Random seed.")
     p.add_argument("--device", type=str, default="cpu",
                    help="Device string, e.g. 'cpu' or 'cuda'.")
-
+    p.add_argument("--plots", type=bool, default=False,
+                   help="Compute plots of bests (and last) checkpoints.")
+    p.add_argument("--plot-dir", type=str, default="outputs",
+                   help="Directory to save plots.")
 
 def build_model(encoder_name: str, pretrained: bool) -> model_mod.SegmentationModel:
     encoder = model_mod.EncoderWrapper(name=encoder_name, pretrained=pretrained)
     decoder = model_mod.DecoderUNetSmall(encoder_channels=encoder.feature_channels)
     return model_mod.SegmentationModel(encoder=encoder, decoder=decoder)
 
+def plot_from_checkpoint(
+    ckpt_path: str | Path,
+    encoder_name: str,
+    dataset: RoofDataset,
+    save_path: str | Path | None = None,
+    ) -> None:
+    """
+    Utilises plot_batch to plot all images from a chosen checkpoint.
+    """
+    # loads a predictor from a checkpoint
+    model = build_model(encoder_name=encoder_name, pretrained=False)
+    predictor = Predictor(model=model, ckpt_path=ckpt_path)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
+
+    mode=dataset.mode
+    # create a batch of full size
+    imgs_list=[]
+
+    if mode=="train" or mode=="val":
+        masks_list=[]
+        for _,(imgs_batch,masks_batch) in enumerate(dataloader):
+            imgs_list.append(imgs_batch)
+            masks_list.append(masks_batch)
+        # convert to tensor
+        masks=torch.cat(masks_list,dim=0)
+    
+    else:
+        for _,(imgs_batch,_) in enumerate(dataloader):
+            imgs_list.append(imgs_batch)
+    
+    # converts image list to tensor and make predictions
+    imgs=torch.cat(imgs_list,dim=0)
+    preds=predictor.predict_batch(imgs)
+
+    # Plot comparison row-by-row
+    plot_batch(
+        imgs,
+        preds,
+        masks = masks if mode=="train" or mode=="val" else None,
+        max_n=len(imgs),
+        title="Comparison Plot" if mode=="train" or mode=="val" else "Test Plot",
+        save_path=save_path,
+        show=True,
+        overlay_alpha=0.5,
+    )
 
 # -------------------------
 # Subcommand: train
@@ -106,6 +156,16 @@ def run_train(args: argparse.Namespace) -> None:
         f"\n         Last checkpoint saved at: {last_path.resolve()}",
         f"\n         Training history saved at: {history_path.resolve()}"
     )
+    if args.plots:
+        print("[Plotting] learning curves...")
+        # load history from json
+        history = json.load(open(history_path, "r"))
+        plot_learning_curves(history, save_path="outputs/learning_curves.png", show=True)
+        print("[Plotting] comparison plots for best IoU...")
+        plot_from_checkpoint(ckpt_path=best_path_iou, encoder_name=args.encoder, dataset=train_ds, save_path="outputs/train_best_iou.png")
+        print("[Plotting] comparison plots for best Dice...")
+        plot_from_checkpoint(ckpt_path=best_path_dice, encoder_name=args.encoder, dataset=train_ds, save_path="outputs/train_best_dice.png")
+
 
 
 # -------------------------
@@ -116,7 +176,7 @@ def configure_predict_parser(subparsers) -> None:
     pp = subparsers.add_parser("predict", help="Predict masks for test images.")
     pp.add_argument("--data-dir", type=str, default="data/raw",
                     help="Directory containing images (test images have no masks).")
-    pp.add_argument("--ckpt-path", type=str, default="models/checkpoints/best_path_iou.pth",
+    pp.add_argument("--ckpt-path", type=str, default="models/checkpoints/best_iou.pth",
                     help="Path to checkpoint to load, defaults to best IoU.")
     pp.add_argument("--pred-dir", type=str, default="outputs/predictions",
                     help="Directory to save predicted masks.")
@@ -154,6 +214,11 @@ def run_predict(args: argparse.Namespace) -> None:
 
     print(f"[done] Wrote predictions to: {pred_dir.resolve()}")
 
+    if args.plots:
+        print("[Plotting] comparison plots for best IoU...")
+        plot_from_checkpoint(ckpt_path=args.ckpt_path, encoder_name=args.encoder, dataset=test_ds, save_path="outputs/test_best_iou.png")
+        print("[Plotting] comparison plots for best Dice...")
+        plot_from_checkpoint(ckpt_path=args.ckpt_path, encoder_name=args.encoder, dataset=test_ds, save_path="outputs/test_best_dice.png")
 
 # -------------------------
 # Top-level parser

@@ -122,7 +122,7 @@ class Trainer:
         self.best_path_iou = self.ckpt_dir / "best_iou.pth"
         self.best_path_dice = self.ckpt_dir / "best_dice.pth"
         self.last_path = self.ckpt_dir / "last.pth"
-        self.history_path = self.ckpt_dir / "history.csv"
+        self.history_path = self.ckpt_dir / "history.json"
         self.best_iou = -np.inf
         self.best_dice = -np.inf
 
