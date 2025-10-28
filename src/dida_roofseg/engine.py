@@ -21,6 +21,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from .dataset import RoofDataset
+
 
 # -------------------------
 # Losses and metrics
@@ -280,14 +282,32 @@ class Trainer:
 
 class Predictor:
     """
-    Predictor for inference using a trained model.
+    Inference engine for a single model and a dataset.
+    Features:
+     - predict a batch of images
+     - optional: save binary masks to disk (uses .io.save_mask())
     """
-    def __init__(self, model: nn.Module, ckpt_path: str | Path, device: str = "cpu", threshold: float = 0.5):
+    def __init__(
+            self,
+            model: nn.Module,
+            ckpt_path: str | Path,
+            dataset: RoofDataset, # non default
+            mode: str = "test", 
+            device: str = "cpu",
+            threshold: float = 0.5,
+            batch_size: int = 1
+        ):
         self.model = model
         self.device = torch.device(device)
         self.threshold = threshold
         self.model.to(self.device)
         self._load(ckpt_path)
+        self.dataset = dataset
+        self.mode = mode
+        self.dataset.mode = mode
+        self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+        self.batch_size=batch_size
+        
 
     def _load(self, ckpt_path: str | Path) -> None:
         state = torch.load(ckpt_path, map_location=self.device)
@@ -295,7 +315,10 @@ class Predictor:
         self.model.eval()
     
     @torch.no_grad()
-    def predict_batch(self, imgs: Tensor) -> Tensor:
+    def predict_next_batch(
+        self,
+        threshold: float | None = None
+    )-> Tensor:
         """
         Single convenience method to predict a batch of images.
         Args:
@@ -303,7 +326,61 @@ class Predictor:
         Returns:
             (B,1,H,W) tensor of predicted binary masks.
         """
+        # create a batch of images of size self.batch_size
+        if self.mode=="train" or self.mode=="val":
+            imgs, masks = next(iter(self.dataloader))
+        else:
+            imgs, meta = next(iter(self.dataloader))
+        
         logits = self.model(imgs.to(self.device, non_blocking=True))
         probs = torch.sigmoid(logits)
-        preds = (probs >= self.threshold).float()
+        th = float(self.threshold) if threshold is None else threshold
+        preds = (probs >= th).float()
+
         return preds
+
+
+    def yield_training_scores(
+        self,
+        threshold: float | None = None,
+        ):
+        """
+        Method to yield training scores for the three main metrics.
+        Args:
+            threshold: threshold to apply to the predictions.
+        Returns:
+            dict of scores on the full training set.
+        """
+        scores_dict={}
+
+        total_loss = 0.0
+        num_examples = 0
+        ious = []
+        dices = []
+        th = float(self.threshold) if threshold is None else threshold
+
+        # sets the roofdataset in train mode
+        self.mode = "train"
+        self.dataset.mode = "train"
+        self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+
+        for imgs, masks in self.dataloader:
+            imgs = imgs.to(self.device, non_blocking=True)
+            masks = masks.to(self.device, non_blocking=True)
+            logits = self.model(imgs)
+            loss = bce_dice_loss(logits, masks)
+
+            bsz = imgs.size(0)
+            total_loss += loss.item() * bsz
+            num_examples += bsz
+
+            probs = torch.sigmoid(logits)
+            preds = (probs >= th).float()
+            ious.append(compute_iou(preds, masks))
+            dices.append(compute_dice(preds, masks))
+
+        scores_dict["train_loss"] = total_loss / max(1, num_examples)
+        scores_dict["train_iou"] = float(np.mean(ious)) if ious else 0.0
+        scores_dict["train_dice"] = float(np.mean(dices)) if dices else 0.0
+
+        return scores_dict        

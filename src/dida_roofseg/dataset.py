@@ -41,7 +41,7 @@ class RoofDataset(Dataset[tuple[Tensor, Tensor]]):
           - image_size: if given, resize images/masks to (image_size, image_size)
         """
         assert mode in {"train", "val", "test"}
-        self.mode: str = mode
+        self.mode: str | None = mode
         self.image_paths: list[Path] = image_paths
         self.mask_map: dict[str, Path] = mask_dir_map or {}
         self.image_size: int | None = image_size
