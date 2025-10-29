@@ -13,7 +13,7 @@ from torch.utils.data import Dataset
 
 from .io import read_image, read_mask
 
-class RoofDataset(Dataset[tuple[Tensor, Tensor]]): 
+class RoofDataset(Dataset): 
     # generic base class (torch>=2.0): above type hint declares that each __getitem__returns a pair of tensors
     """
     OOP Dataset for train/val/test.
@@ -45,6 +45,9 @@ class RoofDataset(Dataset[tuple[Tensor, Tensor]]):
         self.image_paths: list[Path] = image_paths
         self.mask_map: dict[str, Path] = mask_dir_map or {}
         self.image_size: int | None = image_size
+        if self.image_size is not None and self.image_size % 32 != 0:
+            raise ValueError(f"image_size must be a multiple of 32; got {self.image_size}")
+
 
     def __len__(self) -> int:
         return len(self.image_paths)

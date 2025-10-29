@@ -174,50 +174,6 @@ def plot_batch(
     plt.close(fig)
 
 
-def save_masks(
-    preds: Tensor,
-    out_dir: str | Path,
-    *,
-    threshold: float | None = 0.5,
-    prefix: str = "pred",
-) -> list[Path]:
-    """
-    Save predicted masks as individual PNG files.
-
-    Args:
-        preds: (B,1,H,W) tensor. If float in [0,1], an optional threshold will binarize.
-        out_dir: directory to write PNGs.
-        threshold: if provided, binarize with (pred >= threshold).
-        prefix: filename prefix.
-
-    Returns:
-        List of written file paths.
-    """
-    _ensure_matplotlib()
-    import matplotlib.pyplot as plt
-
-    preds = preds.detach().cpu()
-    B = preds.size(0)
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    written: list[Path] = []
-    for i in range(B):
-        mask = preds[i, 0]
-        if threshold is not None:
-            mask = (mask >= float(threshold)).float()
-
-        fig, ax = plt.subplots(1, 1, figsize=(4, 4))
-        ax.imshow(mask.numpy(), interpolation="nearest")
-        ax.axis("off")
-        p = out_dir / f"{prefix}_{i:03d}.png"
-        fig.savefig(p, bbox_inches="tight", pad_inches=0)
-        plt.close(fig)
-        written.append(p)
-
-    return written
-
-
 def dummy_plot():
     # Simple test
     import torch

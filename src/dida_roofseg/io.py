@@ -6,7 +6,7 @@ Utilities for reading and writing images and masks.
 Description: this module provides functions to handle image and mask I/O operations, including:
 1. Listing & matching
 - list_images(dir) → list of image paths.
-- infer_test_images(raw_dir) → images without corresponding mask files (these 5 are the test set).
+- discover_pairs(raw_dir) → image/mask pairs & test images.
 - train_val_split(masked_images, val_ratio=0.2, seed=…) → simple reproducible split by filename.
 2. I/O utilities
 - read_image(path) → returns a normalized tensor (3,H,W) (no heavy transforms).
@@ -21,6 +21,7 @@ import cv2
 import numpy as np
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 
 
 # Supported image extensions
@@ -97,7 +98,10 @@ def train_val_split(paths: list[Path], val_ratio: float = 0.2, seed: int = 42) -
     """
     Simple train/val split by shuffling and slicing.
     Ensures at least one sample in val if possible.
+    Keeps train and val in the same order every run for reproducibility.
+    Avoids a potential skew by sorting the inputs first.
     """
+    paths = sorted(paths, key=lambda p: p.name)
     rng = np.random.default_rng(seed)
     idx = np.arange(len(paths))
     rng.shuffle(idx)
@@ -169,4 +173,13 @@ def save_mask(mask_tensor: Tensor, out_path: str | Path) -> None:
     else:
         mask_np = mask_tensor.detach().cpu().numpy()
     mask_np = (mask_np > 0.5).astype(np.uint8) * 255
-    cv2.imwrite(str(out_path), mask_np)
+    cv2.imwrite(str(out_path), mask_np, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+
+
+def resize_mask_to(mask_tensor: Tensor, size_hw: tuple[int, int]) -> Tensor:
+    """Resize (1,H,W) tensor to (1,h0,w0) via nearest neighbor."""
+    assert mask_tensor.dim() == 3 and mask_tensor.size(0) == 1
+    h0, w0 = size_hw
+    m = mask_tensor.unsqueeze(0)  # (1,1,H,W)
+    m = F.interpolate(m, size=(h0, w0), mode="nearest")
+    return m.squeeze(0)
