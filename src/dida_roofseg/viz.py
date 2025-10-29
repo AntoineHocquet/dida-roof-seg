@@ -13,6 +13,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from .io import save_mask
+
 
 def _to_hw3(
     x: Tensor,
@@ -194,7 +196,7 @@ def dummy_plot():
         overlay_alpha=0.5,
     )
 
-    save_masks(preds, out_dir="test_masks", threshold=0.5, prefix="test_pred")
+    save_mask(preds, out_dir="test_masks", threshold=0.5, prefix="test_pred")
     
 if __name__ == "__main__":
     import json
