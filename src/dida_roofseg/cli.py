@@ -120,7 +120,6 @@ def configure_train_parser(subparsers) -> None:
 
 def run_train(args: argparse.Namespace) -> None:
     # Set seed for reproducibility
-    # (Comment out the next line if you prefer faster, slightly nondeterministic training)
     set_seed(args.seed, deterministic=True)
 
     labeled_images, mask_map, test_images = discover_pairs(args.data_dir)
