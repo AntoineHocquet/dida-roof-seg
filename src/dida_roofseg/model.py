@@ -185,7 +185,7 @@ class DecoderUNetSmall(nn.Module):
         
         c1, c2, c3, c4, c5 = encoder_channels # from shallow to deep
 
-        # choose small widths for CPU-friendliness
+        # choose small widths for faster training
         d5 = base_dec * 8  # deepest, from c5
         d4 = base_dec * 4
         d3 = base_dec * 2
