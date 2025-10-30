@@ -2,9 +2,15 @@
 """
 Unified CLI for training and predicting roof segmentation.
 Usage:
+  ```
   python -m dida_roofseg.cli train   [args...]
   python -m dida_roofseg.cli predict [args...]
-
+  ```
+or if installed as a package (`pip install dida-roofseg`):
+  ```
+  dida-roofseg train   [args...]
+  dida-roofseg predict [args...]
+  ```
 Entry point for 'dida-roofseg' is in pyproject.toml under [project.scripts]:
 dida-roofseg = "dida_roofseg.cli:main"
 """
@@ -45,6 +51,7 @@ def add_shared_model_args(p: argparse.ArgumentParser) -> None:
                    help="Directory to save plots.")
 
 def build_model(encoder_name: str, pretrained: bool) -> model_mod.SegmentationModel:
+    """Builds a model from encoder name."""
     encoder = model_mod.EncoderWrapper(name=encoder_name, pretrained=pretrained)
     decoder = model_mod.DecoderUNetSmall(encoder_channels=encoder.feature_channels)
     return model_mod.SegmentationModel(encoder=encoder, decoder=decoder)
@@ -119,6 +126,10 @@ def configure_train_parser(subparsers) -> None:
 
 
 def run_train(args: argparse.Namespace) -> None:
+    # ensures image size is a multiple of 32
+    if args.image_size % 32 != 0:
+        raise ValueError(f"Image size must be a multiple of 32; got {args.image_size}.")
+
     # Set seed for reproducibility
     set_seed(args.seed, deterministic=True)
 

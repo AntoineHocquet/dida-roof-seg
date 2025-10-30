@@ -5,15 +5,15 @@ This task was proposed by Dida as a recruitment exercise. The goal is to segment
 
 ## Dataset
 
-The dataset consists of 30 aerial images of size 256x256 pixels, along with 25 corresponding labels (referred to as "masks" in this repo) indicating the roof areas. The images are in JPG format, and the masks are in PNG format.  
+The dataset consists of 30 aerial images of size 256x256 pixels, along with 25 corresponding labels (referred to as "masks" in this repo) indicating the roof areas. Both images and masks are in PNG format.  
 The data can be found at [https://dida.do/downloads/dida-test-task](https://dida.do/downloads/dida-test-task).
 
 ## Instructions from Dida
 
-There are 30 satellite pictures of houses and 25 corresponding labels that indicate the roofs. Take those 25 data points and train a neural network on them — you are completely free about the architecture and are of course allowed to use any predefined version of networks.  
+"There are 30 satellite pictures of houses and 25 corresponding labels that indicate the roofs. Take those 25 data points and train a neural network on them — you are completely free about the architecture and are of course allowed to use any predefined version of networks.  
 However, you should be able to explain what you are doing — both in terms of code and why certain steps are good choices.  
 The preferred language is Python, but you can also use other languages.  
-Please evaluate your network on the 5 remaining test images by making predictions of the roofs, and send the predictions together with a short explanation of your approach.
+Please evaluate your network on the 5 remaining test images by making predictions of the roofs, and send the predictions together with a short explanation of your approach."
 
 ---
 
@@ -53,7 +53,6 @@ dida-roof-seg
 │     ├── seed.py       # random seed setting
 │     └── viz.py        # visualization utilities
 └── tests
-   ├── test_cli.py
    ├── test_io.py
    └── test_models.py
 ```

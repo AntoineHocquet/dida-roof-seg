@@ -100,7 +100,13 @@ class TrainConfig:
 
 class Trainer:
     """
-    Trainer for the model (OOP- style).
+    Trainer for the model (OOP- style); it allows to freeze the encoder for better performance during warm-up.
+    Attributes:
+        model (nn.Module): The model to train.
+        train_loader (DataLoader): DataLoader for training data.
+        val_loader (DataLoader): DataLoader for validation data.
+        cfg (TrainConfig): Configuration for training.
+        ckpt_dir (str | Path): Directory to save checkpoints.
     """
     def __init__(
         self,
